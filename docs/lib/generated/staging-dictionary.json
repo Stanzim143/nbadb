@@ -4228,19 +4228,19 @@
         "fk_ref": ""
       },
       {
-        "name": "position_def",
+        "name": "position_off",
         "type": "String",
         "nullable": true,
-        "description": "Position def value in the staging table stg_box_score_matchups.",
+        "description": "Position off value in the staging table stg_box_score_matchups.",
         "description_source": "generated",
         "source": "",
         "fk_ref": ""
       },
       {
-        "name": "comment_def",
+        "name": "comment_off",
         "type": "String",
         "nullable": true,
-        "description": "Comment def value in the staging table stg_box_score_matchups.",
+        "description": "Comment off value in the staging table stg_box_score_matchups.",
         "description_source": "generated",
         "source": "",
         "fk_ref": ""

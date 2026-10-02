@@ -155,6 +155,35 @@ class TestReconciliation:
             assert row["net_rating_diff"] == pytest.approx(14.0)
             assert row["plus_minus_diff"] == pytest.approx(11.0)
 
+    def test_summary_rounding_and_source_plus_minus_are_not_conflicts(self) -> None:
+        summary_on = _summary_frame(on=True).with_columns(
+            pl.lit(2100.0).alias("min"), pl.lit(4.5).alias("plus_minus")
+        )
+        summary_off = _summary_frame(on=False).with_columns(
+            pl.lit(1350.0).alias("min"), pl.lit(-2.0).alias("plus_minus")
+        )
+        detail_on = _detail_frame(on=True).with_columns(
+            pl.lit(2100.4).alias("min"), pl.lit(8.0).alias("plus_minus")
+        )
+        detail_off = _detail_frame(on=False).with_columns(
+            pl.lit(1350.2).alias("min"), pl.lit(-3.0).alias("plus_minus")
+        )
+        staging = _staging(
+            stg_on_off_summary_on_court=summary_on,
+            stg_on_off_summary_off_court=summary_off,
+            stg_on_off_details_on_court=detail_on,
+            stg_on_off_details_off_court=detail_off,
+        )
+
+        result = _run(staging)
+        curated = _player_rows(result).sort("on_off")
+        detail_rows = result.filter(pl.col("entity_type") == "player_detail").sort("on_off")
+
+        assert curated["min"].to_list() == pytest.approx([1350.2, 2100.4])
+        assert curated["plus_minus"].to_list() == pytest.approx([-2.0, 4.5])
+        assert curated["plus_minus_diff"].unique().to_list() == pytest.approx([6.5])
+        assert detail_rows["plus_minus"].to_list() == pytest.approx([-3.0, 8.0])
+
     def test_rates_are_derived_from_counts_and_provider_values_are_retained(self) -> None:
         on = _player_rows(_run(_staging())).filter(pl.col("on_off") == "On").row(0, named=True)
         assert on["provider_fg_pct"] == pytest.approx(0.49)
@@ -233,7 +262,7 @@ class TestConflictSafety:
 
     @pytest.mark.parametrize(
         ("column", "value"),
-        [("gp", 999), ("min", 9999.0), ("plus_minus", 99.0)],
+        [("gp", 999), ("min", 9999.0)],
     )
     def test_each_summary_detail_shared_total_must_reconcile(
         self,

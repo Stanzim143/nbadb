@@ -3119,7 +3119,7 @@
         "off_rating",
         "def_rating"
       ],
-      "source_tables": ["dim_player", "dim_team", "fact_player_clutch_detail"]
+      "source_tables": ["dim_all_players", "fact_player_clutch_detail"]
     }
   },
   "analytics_draft_value": {
@@ -18330,7 +18330,7 @@
     },
     "sql_lineage": {
       "class_name": "FactOnOffDetailTransformer",
-      "columns": ["*", "court_status"],
+      "columns": ["court_status"],
       "source_tables": [
         "stg_on_off_details_off_court",
         "stg_on_off_details_on_court",

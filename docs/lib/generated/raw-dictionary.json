@@ -941,6 +941,24 @@
         "fk_ref": ""
       },
       {
+        "name": "position_off",
+        "type": "String",
+        "nullable": true,
+        "description": "Offensive player's listed position",
+        "description_source": "metadata",
+        "source": "BoxScoreMatchupsV3.PlayerStats.POSITION_OFF",
+        "fk_ref": ""
+      },
+      {
+        "name": "comment_off",
+        "type": "String",
+        "nullable": true,
+        "description": "Offensive player's source comment",
+        "description_source": "metadata",
+        "source": "BoxScoreMatchupsV3.PlayerStats.COMMENT_OFF",
+        "fk_ref": ""
+      },
+      {
         "name": "off_player_id",
         "type": "Int64",
         "nullable": true,

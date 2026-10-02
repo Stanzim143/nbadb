@@ -971,7 +971,7 @@
           "source": "derived.agg_on_off_splits.gp"
         },
         {
-          "description": "Provider minutes in this split",
+          "description": "Detail minutes on curated rows, retaining fractional precision; summary whole-minute values are used as a consistency check.",
           "description_source": "metadata",
           "fk_ref": null,
           "name": "min",
@@ -1160,8 +1160,8 @@
           "source": "derived.agg_on_off_splits.pts"
         },
         {
-          "description": "Point differential while the player or team was on court.",
-          "description_source": "generated",
+          "description": "Summary plus-minus on curated player rows; source detail plus-minus is retained on provider_detail rows.",
+          "description_source": "metadata",
           "fk_ref": null,
           "name": "plus_minus",
           "source": "derived.agg_on_off_splits.plus_minus"
@@ -3582,7 +3582,7 @@
           "source": null
         },
         {
-          "description": "Team identifier",
+          "description": "Team identifier when supplied by source",
           "description_source": "metadata",
           "fk_ref": "dim_team.team_id",
           "name": "team_id",
@@ -3631,7 +3631,7 @@
           "source": "derived.analytics_clutch_performance.player_name"
         },
         {
-          "description": "Team abbreviation code",
+          "description": "Team abbreviation when supplied by source",
           "description_source": "metadata",
           "fk_ref": null,
           "name": "team_abbreviation",
@@ -3681,9 +3681,9 @@
         }
       ],
       "description": "Clutch performance stats joined with player and team dimensions.",
-      "grain": "player-team-season-season_type-clutch_window-group",
+      "grain": "player-season-season_type-clutch_window-group",
       "join_hints": {},
-      "scd2_notes": "Player identity uses the half-open dim_player interval containing the clutch row's season. Clutch windows remain provider-defined.",
+      "scd2_notes": null,
       "schema_class": "AnalyticsClutchPerformanceSchema",
       "table": "analytics_clutch_performance"
     },

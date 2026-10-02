@@ -40,6 +40,20 @@ class RawBoxScoreMatchupsSchema(BaseSchema):
             "description": ("Defensive team abbreviation"),
         },
     )
+    position_off: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("BoxScoreMatchupsV3.PlayerStats.POSITION_OFF"),
+            "description": "Offensive player's listed position",
+        },
+    )
+    comment_off: str | None = pa.Field(
+        nullable=True,
+        metadata={
+            "source": ("BoxScoreMatchupsV3.PlayerStats.COMMENT_OFF"),
+            "description": "Offensive player's source comment",
+        },
+    )
     off_player_id: int | None = pa.Field(
         nullable=True,
         metadata={

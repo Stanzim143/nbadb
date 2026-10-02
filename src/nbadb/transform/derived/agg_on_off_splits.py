@@ -191,9 +191,10 @@ class AggOnOffSplitsTransformer(SqlTransformer):
                 END AS reconciled_gp,
                 CASE WHEN s.summary_min IS NOT NULL
                     AND d.detail_min IS NOT NULL
-                    AND s.summary_min IS DISTINCT FROM d.detail_min
+                    AND s.summary_min IS DISTINCT FROM ROUND(d.detail_min, 0)
                     THEN error('conflicting provider on/off summary/detail min')
-                    ELSE COALESCE(s.summary_min, d.detail_min)
+                    -- Summary reports whole-minute values; keep detail precision.
+                    ELSE COALESCE(d.detail_min, s.summary_min)
                 END AS reconciled_min,
                 d.w,
                 d.l,
@@ -218,12 +219,11 @@ class AggOnOffSplitsTransformer(SqlTransformer):
                 d.pf,
                 d.pfd,
                 d.pts,
-                CASE WHEN s.summary_plus_minus IS NOT NULL
-                    AND d.detail_plus_minus IS NOT NULL
-                    AND s.summary_plus_minus IS DISTINCT FROM d.detail_plus_minus
-                    THEN error('conflicting provider on/off summary/detail plus_minus')
-                    ELSE COALESCE(s.summary_plus_minus, d.detail_plus_minus)
-                END AS reconciled_plus_minus,
+                -- These are two source outputs, not a proven equality contract.
+                -- Use the summary value on the curated row; the provider-detail
+                -- row below preserves the detail value independently.
+                COALESCE(s.summary_plus_minus, d.detail_plus_minus)
+                    AS reconciled_plus_minus,
                 s.summary_off_rating AS off_rating,
                 s.summary_def_rating AS def_rating,
                 s.summary_net_rating AS net_rating

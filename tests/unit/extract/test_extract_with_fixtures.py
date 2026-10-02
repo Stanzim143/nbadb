@@ -13,8 +13,10 @@ from typing import Any
 import pandas as pd
 import polars as pl
 import pytest
+from nba_api.stats.endpoints import PlayerDashboardByClutch
 
-from nbadb.extract.nba_api_adapter import NbaApiResultPacket
+from nbadb.extract.base import BaseExtractor
+from nbadb.extract.nba_api_adapter import NbaApiResultPacket, NbaApiResultPackets
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -169,6 +171,89 @@ class TestDraftExtract:
         assert result.shape[0] == 2
         assert "person_id" in result.columns
         assert "player_name" in result.columns
+
+    def test_provider_request_maps_draft_season_to_calendar_year(self) -> None:
+        from nba_api.stats.endpoints import DraftHistory
+
+        from nbadb.extract.base import _forward_explicit_provider_parameters
+
+        captured = _forward_explicit_provider_parameters(
+            DraftHistory,
+            {"season_year_nullable": "2024-25"},
+            {"season": "2024-25"},
+        )
+
+        assert captured == {"season_year_nullable": 2024}
+
+        from nbadb.core.errors import ResponseContractError
+
+        for invalid_season in ("2024garbage", "2024-26", "２０２４-２５", " 2024-25"):
+            with pytest.raises(ResponseContractError):
+                _forward_explicit_provider_parameters(
+                    DraftHistory,
+                    {"season_year_nullable": invalid_season},
+                    {"season": invalid_season},
+                )
+
+    def test_live_provider_boundary_uses_draft_calendar_year(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from nba_api.stats.endpoints import DraftHistory
+
+        import nbadb.extract.base as base
+        from nbadb.extract.stats.draft import DraftHistoryExtractor
+
+        ext = DraftHistoryExtractor()
+        ext.set_logical_request_params({"season": "2024-25"})
+        captured: dict[str, Any] = {}
+
+        def fake_fetch(endpoint: type, **kwargs: Any) -> list[Any]:
+            captured["endpoint"] = endpoint
+            captured.update(kwargs)
+            return []
+
+        monkeypatch.setattr(base, "fetch_stats_packets", fake_fetch)
+        assert ext._call_nba_api(DraftHistory, season_year_nullable="2024-25") == []
+        assert captured["endpoint"] is DraftHistory
+        assert captured["season_year_nullable"] == 2024
+
+    def test_shot_chart_provider_request_materializes_default_league_scope(self) -> None:
+        from nba_api.stats.endpoints import ShotChartDetail
+
+        from nbadb.extract.base import _forward_explicit_provider_parameters
+
+        captured = _forward_explicit_provider_parameters(
+            ShotChartDetail,
+            {"player_id": 2544},
+            {"player_id": 2544, "season": "2024-25"},
+        )
+
+        assert captured["league_id"] == "00"
+
+        for explicit_scope in (None, ""):
+            captured = _forward_explicit_provider_parameters(
+                ShotChartDetail,
+                {"player_id": 2544, "league_id": explicit_scope},
+                {"player_id": 2544, "season": "2024-25", "league_id": explicit_scope},
+            )
+            assert captured["league_id"] == "00"
+
+    def test_request_closure_uses_same_draft_calendar_year(self) -> None:
+        from nbadb.extract.registry import EndpointRegistry
+        from nbadb.extract.stats.draft import DraftHistoryExtractor
+        from nbadb.orchestrate.request_closure_production import _probe_provider_call
+
+        registry = EndpointRegistry()
+        registry.register(DraftHistoryExtractor)
+        endpoint, constructor, runtime = _probe_provider_call(
+            registry,
+            endpoint_name="draft_history",
+            params={"season": "2024-25"},
+            use_multi=False,
+        )
+        assert endpoint.__name__ == "DraftHistory"
+        assert constructor["season_year_nullable"] == 2024
+        assert runtime["Season"] == 2024
 
 
 # ---------------------------------------------------------------------------
@@ -445,3 +530,56 @@ class TestMultiResultSet:
         team_stats = results[1]
         assert "player_id" in player_stats.columns
         assert "team_name" in team_stats.columns
+
+
+class _PacketExtractorProbe(BaseExtractor):
+    async def extract(self, **params: Any) -> pl.DataFrame:
+        return pl.DataFrame()
+
+
+def test_clutch_live_header_extension_restores_missing_optional_references() -> None:
+    headers = (
+        "WNBA_FANTASY_PTS",
+        "FP_HIGH_SCORE",
+        "WNBA_FANTASY_PTS_RANK",
+        "FP_HIGH_SCORE_RANK",
+        "TEAM_COUNT",
+    )
+    packet = NbaApiResultPacket(
+        name="OverallPlayerDashboard",
+        provider_index=0,
+        canonical_index=0,
+        headers=headers,
+        frame=pl.DataFrame({header: [0] for header in headers}),
+    )
+
+    (frame,) = _PacketExtractorProbe()._convert_nba_api_packets(
+        PlayerDashboardByClutch,
+        NbaApiResultPackets((packet,)),
+        {},
+    )
+
+    assert frame["cfid"].dtype == pl.Int64
+    assert frame["cfid"].null_count() == 1
+    assert frame["cfparams"].dtype == pl.String
+    assert frame["cfparams"].null_count() == 1
+    assert frame["team_count"].to_list() == [0]
+
+
+def test_clutch_partial_header_drift_does_not_synthesize_reference_fields() -> None:
+    packet = NbaApiResultPacket(
+        name="OverallPlayerDashboard",
+        provider_index=0,
+        canonical_index=0,
+        headers=("WNBA_FANTASY_PTS",),
+        frame=pl.DataFrame({"WNBA_FANTASY_PTS": [0]}),
+    )
+
+    (frame,) = _PacketExtractorProbe()._convert_nba_api_packets(
+        PlayerDashboardByClutch,
+        NbaApiResultPackets((packet,)),
+        {},
+    )
+
+    assert "cfid" not in frame.columns
+    assert "cfparams" not in frame.columns

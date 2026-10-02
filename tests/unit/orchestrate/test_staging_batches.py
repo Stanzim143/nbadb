@@ -701,6 +701,44 @@ def test_persisted_attestation_uses_the_post_cast_stored_chunk() -> None:
     assert row[0] != row[2]
 
 
+def test_empty_null_typed_chunk_does_not_poison_later_route_schema() -> None:
+    conn = duckdb.connect(":memory:")
+    try:
+        store = StagingBatchStore(conn)
+        empty = pl.DataFrame(schema={"group_set": pl.Null, "team_id": pl.Null})
+        store.persist_frames(
+            {"stg_team_dashboard_on_off": empty},
+            metadata=_metadata(chunk_index=0),
+            materialize=False,
+        )
+        empty_only_table = conn.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = ?",
+            ["_staging_chunks__stg_team_dashboard_on_off"],
+        ).fetchone()
+
+        store.persist_frames(
+            {
+                "stg_team_dashboard_on_off": pl.DataFrame(
+                    {"group_set": ["On/Off Court"], "team_id": [1610612747]}
+                )
+            },
+            metadata=_metadata(chunk_index=1),
+            materialize=True,
+        )
+        rows = conn.execute("SELECT group_set, team_id FROM stg_team_dashboard_on_off").fetchall()
+        group_set_type = conn.execute(
+            "SELECT data_type FROM information_schema.columns "
+            "WHERE table_name = ? AND column_name = ?",
+            ["stg_team_dashboard_on_off", "group_set"],
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert empty_only_table is None
+    assert rows == [("On/Off Court", 1610612747)]
+    assert group_set_type == ("VARCHAR",)
+
+
 def test_appends_chunks_with_union_schema_by_name() -> None:
     conn = duckdb.connect(":memory:")
     try:

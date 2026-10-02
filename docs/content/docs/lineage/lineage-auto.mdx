@@ -1402,6 +1402,7 @@ flowchart LR
     agg_team_season --> analytics_team_season_summary
     bridge_game_team --> agg_game_totals
     bridge_game_team --> analytics_game_summary
+    dim_all_players --> analytics_clutch_performance
     dim_game --> agg_game_totals
     dim_game --> agg_player_rolling
     dim_game --> agg_player_season
@@ -1421,7 +1422,6 @@ flowchart LR
     dim_game --> fact_player_game_traditional
     dim_game --> fact_shot_chart
     dim_game --> fact_team_game
-    dim_player --> analytics_clutch_performance
     dim_player --> analytics_draft_value
     dim_player --> analytics_player_game_complete
     dim_player --> analytics_player_general_splits
@@ -1429,7 +1429,6 @@ flowchart LR
     dim_player --> analytics_player_matchup
     dim_player --> analytics_player_season_complete
     dim_team --> agg_player_season
-    dim_team --> analytics_clutch_performance
     dim_team --> analytics_game_summary
     dim_team --> analytics_head_to_head
     dim_team --> analytics_player_game_complete

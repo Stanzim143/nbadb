@@ -449,3 +449,11 @@ class TestFactShotChartSeasonYear:
         tables["dim_game"] = _DIM_GAME.filter(pl.col("game_id") == -1)
         result = _run_sql(FactShotChartTransformer(), tables)
         assert result["season_year"].to_list() == ["2024-25"]
+
+    def test_provider_game_date_is_compatible_with_date_dimension(self):
+        tables = self._tables()
+        tables["dim_game"] = tables["dim_game"].with_columns(
+            pl.col("game_date").str.strptime(pl.Date, format="%Y-%m-%d")
+        )
+        result = _run_sql(FactShotChartTransformer(), tables)
+        assert result["game_date"].to_list() == ["20241105"]

@@ -522,6 +522,17 @@ def test_result_set_and_staging_receipts_must_conserve_rows_and_payloads() -> No
     with pytest.raises(RequestClosureRuntimeError, match="each present result"):
         replace(observation, staging_receipts=())
 
+    # A pinned provider result may be deliberately landed to multiple distinct
+    # storage routes (for example, a legacy table and its canonical successor).
+    second_landing = replace(
+        staging,
+        staging_key="stg_common_all_players_legacy",
+        staging_receipt_root_sha256=_F,
+    )
+    multi_landing = replace(observation, staging_receipts=(staging, second_landing))
+    assert len(multi_landing.staging_receipts) == 2
+    assert {item.result_set_ordinal for item in multi_landing.staging_receipts} == {0}
+
     invented_result = replace(
         observation.result_sets[0],
         result_set_name="InventedResultSet",

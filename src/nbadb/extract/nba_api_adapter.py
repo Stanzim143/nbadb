@@ -1908,6 +1908,117 @@ def _expected_result_sets(
         if name is None:
             raise ResponseContractError("pinned nbadb result-set name is absent")
         headers = result_set.expected_columns
+        if (
+            endpoint_slug == "boxscorematchupsv3"
+            and name == "PlayerStats"
+            and "positionDef" in headers
+            and "commentDef" in headers
+            and "playerSlugOff" in headers
+        ):
+            # The current nested response places these values on the offensive
+            # player object; the pinned nba_api declaration labels them as
+            # defender fields. Keep all other pinned columns exact.
+            without_stale_labels = tuple(
+                header for header in headers if header not in {"positionDef", "commentDef"}
+            )
+            player_slug_index = without_stale_labels.index("playerSlugOff") + 1
+            headers = (
+                without_stale_labels[:player_slug_index]
+                + ("positionOff", "commentOff")
+                + without_stale_labels[player_slug_index:]
+            )
+        if endpoint_slug == "drafthistory" and name == "DraftHistory":
+            observed_headers = (
+                "PERSON_ID",
+                "PLAYER_NAME",
+                "SEASON",
+                "ROUND_NUMBER",
+                "ROUND_PICK",
+                "OVERALL_PICK",
+                "DRAFT_TYPE",
+                "TEAM_ID",
+                "TEAM_CITY",
+                "TEAM_NAME",
+                "TEAM_ABBREVIATION",
+                "ORGANIZATION",
+                "ORGANIZATION_TYPE",
+                "PLAYER_PROFILE_FLAG",
+            )
+            if headers == observed_headers[:-1]:
+                headers = observed_headers
+        if endpoint_slug == "leaguedashteamshotlocations" and name == "ShotLocations":
+            observed_headers = (
+                "TEAM_ID",
+                "TEAM_NAME",
+                "restricted_area_fgm",
+                "restricted_area_fga",
+                "restricted_area_fg_pct",
+                "in_the_paint_non_ra_fgm",
+                "in_the_paint_non_ra_fga",
+                "in_the_paint_non_ra_fg_pct",
+                "mid_range_fgm",
+                "mid_range_fga",
+                "mid_range_fg_pct",
+                "left_corner_3_fgm",
+                "left_corner_3_fga",
+                "left_corner_3_fg_pct",
+                "right_corner_3_fgm",
+                "right_corner_3_fga",
+                "right_corner_3_fg_pct",
+                "above_the_break_3_fgm",
+                "above_the_break_3_fga",
+                "above_the_break_3_fg_pct",
+                "backcourt_fgm",
+                "backcourt_fga",
+                "backcourt_fg_pct",
+                "corner_3_fgm",
+                "corner_3_fga",
+                "corner_3_fg_pct",
+            )
+            if headers == observed_headers[:-3]:
+                headers = observed_headers
+        if endpoint_slug == "playervsplayer":
+            player_matchup_result_sets = {
+                "Overall",
+                "OnOffCourt",
+                "ShotDistanceOverall",
+                "ShotDistanceOnCourt",
+                "ShotDistanceOffCourt",
+                "ShotAreaOverall",
+                "ShotAreaOnCourt",
+                "ShotAreaOffCourt",
+            }
+            if name in player_matchup_result_sets and headers[-2:] == ("CFID", "CFPARAMS"):
+                headers = headers[:-2]
+        if endpoint_slug == "playerdashboardbyclutch":
+            clutch_result_sets = {
+                "OverallPlayerDashboard",
+                "Last5Min5PointPlayerDashboard",
+                "Last3Min5PointPlayerDashboard",
+                "Last1Min5PointPlayerDashboard",
+                "Last30Sec3PointPlayerDashboard",
+                "Last10Sec3PointPlayerDashboard",
+                "Last5MinPlusMinus5PointPlayerDashboard",
+                "Last3MinPlusMinus5PointPlayerDashboard",
+                "Last1MinPlusMinus5PointPlayerDashboard",
+                "Last30Sec3Point2PlayerDashboard",
+                "Last10Sec3Point2PlayerDashboard",
+            }
+            if name in clutch_result_sets and headers[-2:] == ("CFID", "CFPARAMS"):
+                observed_headers = list(headers[:-2])
+                if "TD3" in observed_headers and "TD3_RANK" in observed_headers:
+                    overall_index = observed_headers.index("TD3") + 1
+                    observed_headers[overall_index:overall_index] = [
+                        "WNBA_FANTASY_PTS",
+                        "FP_HIGH_SCORE",
+                    ]
+                    rank_index = observed_headers.index("TD3_RANK") + 1
+                    observed_headers[rank_index:rank_index] = [
+                        "WNBA_FANTASY_PTS_RANK",
+                        "FP_HIGH_SCORE_RANK",
+                    ]
+                    observed_headers.append("TEAM_COUNT")
+                    headers = tuple(observed_headers)
         if len(set(headers)) != len(headers):
             raise ResponseContractError("pinned nbadb contract contains duplicate columns")
         expected.append((name, headers))

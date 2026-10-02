@@ -98,6 +98,26 @@ class TestFactOnOffDetail:
         assert "team_id" in result.columns
         assert "gp" in result.columns
 
+    def test_provider_court_status_is_replaced_by_fact_discriminator(self) -> None:
+        row = {
+            "player_id": 201566,
+            "team_id": 1610612738,
+            "gp": 50,
+            "min": 30.0,
+            "court_status": "On/Off Court",
+        }
+        staging = _register_all(FactOnOffDetailTransformer.depends_on, row)
+        result = _run(FactOnOffDetailTransformer(), staging)
+        assert result.shape[0] == 6
+        assert set(result["court_status"].to_list()) == {
+            "detail_overall",
+            "detail_off_court",
+            "detail_on_court",
+            "summary_overall",
+            "summary_off_court",
+            "summary_on_court",
+        }
+
 
 # ---------------------------------------------------------------------------
 # Cumulative Stats Detail

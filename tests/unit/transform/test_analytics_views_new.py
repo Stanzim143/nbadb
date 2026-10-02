@@ -310,21 +310,19 @@ class TestAnalyticsClutchPerformance:
 
     def test_depends_on_count(self) -> None:
         t = AnalyticsClutchPerformanceTransformer()
-        assert len(t.depends_on) == 3
+        assert len(t.depends_on) == 2
 
     def test_depends_on_contents(self) -> None:
         t = AnalyticsClutchPerformanceTransformer()
         assert set(t.depends_on) == {
             "fact_player_clutch_detail",
-            "dim_player",
-            "dim_team",
+            "dim_all_players",
         }
 
-    def test_join_enriches_with_player_and_team(self) -> None:
+    def test_join_enriches_player_and_preserves_missing_team_identity(self) -> None:
         fact = pl.DataFrame(
             {
                 "player_id": [201566],
-                "team_id": [1610612738],
                 "season_year": ["2024-25"],
                 "season_type": ["Regular Season"],
                 "clutch_window": ["last5min_5pt"],
@@ -353,50 +351,40 @@ class TestAnalyticsClutchPerformance:
                 "pf": [1.0],
                 "pts": [9.0],
                 "plus_minus": [3.0],
-                "net_rating": [8.0],
-                "off_rating": [112.0],
-                "def_rating": [104.0],
             }
         ).lazy()
 
-        dim_player = pl.DataFrame(
+        dim_all_players = pl.DataFrame(
             {
-                "player_id": [201566],
-                "full_name": ["Russell Westbrook"],
-                "valid_from": ["2020-21"],
-                "valid_to": [None],
-                "is_current": [True],
-            }
-        ).lazy()
-
-        dim_team = pl.DataFrame(
-            {
-                "team_id": [1610612738],
-                "abbreviation": ["BOS"],
+                "person_id": [201566],
+                "display_first_last": ["Russell Westbrook"],
+                "from_year": ["2008"],
+                "to_year": ["2026"],
             }
         ).lazy()
 
         staging = {
             "fact_player_clutch_detail": fact,
-            "dim_player": dim_player,
-            "dim_team": dim_team,
+            "dim_all_players": dim_all_players,
         }
         result = _run(AnalyticsClutchPerformanceTransformer(), staging)
 
         assert result.shape[0] == 1
         assert result["player_name"][0] == "Russell Westbrook"
-        assert result["team_abbreviation"][0] == "BOS"
+        assert result["team_id"][0] is None
+        assert result["team_abbreviation"][0] is None
         assert result["season_type"][0] == "Regular Season"
         assert result["clutch_window"][0] == "last5min_5pt"
         assert result["group_set"][0] == "Overall"
         assert result["pts"][0] == pytest.approx(9.0)
-        assert result["net_rating"][0] == pytest.approx(8.0)
+        assert result["net_rating"][0] is None
+        assert result["off_rating"][0] is None
+        assert result["def_rating"][0] is None
 
-    def test_historical_player_name_uses_matching_scd_interval(self) -> None:
+    def test_player_name_uses_nba_directory_season_bounds(self) -> None:
         fact = pl.DataFrame(
             {
                 "player_id": [201566],
-                "team_id": [1610612738],
                 "season_year": ["2024-25"],
                 "season_type": ["Playoffs"],
                 "clutch_window": ["overall"],
@@ -425,39 +413,80 @@ class TestAnalyticsClutchPerformance:
                 "pf": [1.0],
                 "pts": [9.0],
                 "plus_minus": [3.0],
-                "net_rating": [8.0],
-                "off_rating": [112.0],
-                "def_rating": [104.0],
             }
         ).lazy()
 
-        dim_player = pl.DataFrame(
+        dim_all_players = pl.DataFrame(
             {
-                "player_id": [201566],
-                "full_name": ["Russell Westbrook"],
-                "valid_from": ["2020-21"],
-                "valid_to": ["2025-26"],
-                "is_current": [False],
-            }
-        ).lazy()
-
-        dim_team = pl.DataFrame(
-            {
-                "team_id": [1610612738],
-                "abbreviation": ["BOS"],
+                "person_id": [201566],
+                "display_first_last": ["Russell Westbrook"],
+                "from_year": ["2008"],
+                "to_year": ["2024"],
             }
         ).lazy()
 
         staging = {
             "fact_player_clutch_detail": fact,
-            "dim_player": dim_player,
-            "dim_team": dim_team,
+            "dim_all_players": dim_all_players,
         }
         result = _run(AnalyticsClutchPerformanceTransformer(), staging)
 
         assert result.shape[0] == 1
         assert result["player_name"][0] == "Russell Westbrook"
         assert result["season_type"][0] == "Playoffs"
+
+    def test_player_name_is_null_outside_nba_directory_years(self) -> None:
+        fact = pl.DataFrame(
+            {
+                "player_id": [201566],
+                "season_year": ["2007-08"],
+                "season_type": ["Regular Season"],
+                "clutch_window": ["overall"],
+                "group_set": ["Overall"],
+                "group_value": ["2007-08"],
+                "gp": [1],
+                "w": [1],
+                "l": [0],
+                "min": [5.0],
+                "fgm": [3.0],
+                "fga": [7.0],
+                "fg_pct": [0.429],
+                "fg3m": [1.0],
+                "fg3a": [3.0],
+                "fg3_pct": [0.333],
+                "ftm": [2.0],
+                "fta": [2.5],
+                "ft_pct": [0.800],
+                "oreb": [0.5],
+                "dreb": [2.0],
+                "reb": [2.5],
+                "ast": [2.0],
+                "tov": [1.0],
+                "stl": [0.5],
+                "blk": [0.2],
+                "pf": [1.0],
+                "pts": [9.0],
+                "plus_minus": [3.0],
+            }
+        ).lazy()
+        dim_all_players = pl.DataFrame(
+            {
+                "person_id": [201566],
+                "display_first_last": ["Russell Westbrook"],
+                "from_year": ["2008"],
+                "to_year": ["2026"],
+            }
+        ).lazy()
+        result = _run(
+            AnalyticsClutchPerformanceTransformer(),
+            {
+                "fact_player_clutch_detail": fact,
+                "dim_all_players": dim_all_players,
+            },
+        )
+
+        assert result.shape[0] == 1
+        assert result["player_name"][0] is None
 
 
 # ---------------------------------------------------------------------------

@@ -82,6 +82,7 @@ from nbadb.extract.nba_api_adapter import (
     NbaApiLosslessFallback,
     NbaApiReceiptSnapshot,
     NbaApiUnknownResponse,
+    _expected_result_sets,
 )
 from nbadb.extract.raw_request_capture import (
     PendingRawRequestSuccessV2,
@@ -776,10 +777,22 @@ def _pinned_closure_result_sets(
         raise ParserInputCaptureIntegrityError(
             "bronze result sets do not exactly match the pinned result inventory"
         )
+    if contract is None or contract.endpoint_slug is None:
+        raise ParserInputCaptureIntegrityError(
+            "bronze result sets lack exact pinned endpoint authority"
+        )
+    expected_columns = dict(_expected_result_sets(contract, contract.endpoint_slug))
     projected: list[ClosureResultSetReceipt] = []
     for receipt, expected_result in zip(receipts, expected, strict=True):
         expected_name = expected_result.result_set_name
-        expected_headers_sha256 = _canonical_json_sha256(list(expected_result.expected_columns))
+        expected_headers = (
+            expected_columns.get(expected_name) if expected_name is not None else None
+        )
+        if expected_headers is None:
+            raise ParserInputCaptureIntegrityError(
+                "bronze result sets differ from the pinned endpoint header authority"
+            )
+        expected_headers_sha256 = _canonical_json_sha256(list(expected_headers))
         if (
             expected_name is None
             or receipt.name != expected_name
@@ -949,6 +962,40 @@ class PendingRequestObservation:
         ):
             raise ParserInputCaptureIntegrityError(
                 "committed staging receipts must be an exact typed tuple"
+            )
+        physical_by_manifest = {
+            alias.manifest_route_id: alias.staging_route_id
+            for alias in authority.staging_route_aliases
+        }
+        expected_physical_routes = {physical_by_manifest[route_id] for route_id in self.route_ids}
+        physical_by_storage_key: dict[tuple[str, int], str] = {}
+        for route_id in expected_physical_routes:
+            try:
+                _endpoint, staging_key, ordinal_text = route_id.rsplit(":", 2)
+                ordinal = int(ordinal_text)
+            except (TypeError, ValueError) as exc:
+                raise ParserInputCaptureIntegrityError(
+                    "authorized staging route is malformed"
+                ) from exc
+            identity = (staging_key, ordinal)
+            if identity in physical_by_storage_key:
+                raise ParserInputCaptureIntegrityError(
+                    "authorized staging routes have ambiguous storage identities"
+                )
+            physical_by_storage_key[identity] = route_id
+        receipt_routes: list[str] = []
+        for receipt in staging_receipts:
+            route_id = physical_by_storage_key.get(
+                (receipt.staging_key, receipt.result_set_ordinal)
+            )
+            if route_id is None:
+                raise ParserInputCaptureIntegrityError(
+                    "committed staging receipts include an unauthorized physical route"
+                )
+            receipt_routes.append(route_id)
+        if tuple(sorted(receipt_routes)) != tuple(sorted(expected_physical_routes)):
+            raise ParserInputCaptureIntegrityError(
+                "committed staging receipts do not exactly cover authorized physical routes"
             )
         return RequestObservation(
             request_surface_sha256=self.request_surface_sha256,

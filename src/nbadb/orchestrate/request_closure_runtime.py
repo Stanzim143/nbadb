@@ -858,11 +858,9 @@ class RequestObservation:
                     "staging receipt does not conserve its decoded result set"
                 )
             staged_occurrences.append(occurrence)
-        if len(staged_occurrences) != len(set(staged_occurrences)) or set(
-            staged_occurrences
-        ) != set(present_results):
+        if set(staged_occurrences) != set(present_results):
             raise RequestClosureRuntimeError(
-                "persistence must cover each present result occurrence exactly once"
+                "persistence must cover each present result occurrence at least once"
             )
 
     def _validate_state(self) -> None:

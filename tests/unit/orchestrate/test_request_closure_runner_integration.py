@@ -201,6 +201,47 @@ def _execution_authority(
     )
 
 
+def _two_landing_authority(params: dict[str, object]) -> RequestClosureExecutionAuthority:
+    base = _execution_authority(params)
+    legacy_physical_route = f"{_ENDPOINT_NAME}:stg_closure_stats_legacy:0"
+    legacy_manifest_route = f"{legacy_physical_route}:request:fixture"
+    manifest_route_ids = tuple(sorted((_BASE_ROUTE, legacy_manifest_route)))
+    manifest = build_authoritative_route_manifest(
+        tuple(
+            RouteRequestSpecInput(
+                route_id=route_id,
+                source_family="stats",
+                endpoint_id="CommonAllPlayers",
+                parameters=tuple(sorted(params.items())),
+            )
+            for route_id in manifest_route_ids
+        )
+    )
+    aliases = tuple(
+        sorted(
+            (
+                RequestClosureStagingRouteAlias(_BASE_ROUTE, _BASE_ROUTE),
+                RequestClosureStagingRouteAlias(
+                    legacy_manifest_route,
+                    legacy_physical_route,
+                ),
+            )
+        )
+    )
+    competition = _competition_authority(
+        params,
+        manifest_sha256=manifest.manifest_sha256,
+        scope_sha256=base.scope.scope_sha256,
+        route_ids=manifest_route_ids,
+    )
+    return RequestClosureExecutionAuthority(
+        manifest,
+        base.scope,
+        staging_route_aliases=aliases,
+        competition_authorities=(competition,),
+    )
+
+
 def _multi_execution_authority(
     param_sets: list[dict[str, object]],
 ) -> RequestClosureExecutionAuthority:
@@ -410,12 +451,49 @@ async def test_stats_success_exposes_pending_evidence_then_binds_after_commit(
     assert persisted_sources[0]["pending_request_observations"] == (pending,)
     assert runner.request_closure_pending_snapshot() == (pending,)
     assert PendingRequestObservation.from_canonical_bytes(pending.canonical_bytes) == pending
+    with pytest.raises(ParserInputCaptureIntegrityError, match="unauthorized physical route"):
+        pending.bind_committed_staging_receipts(
+            authority,
+            (
+                _staging_receipt(pending),
+                replace(_staging_receipt(pending), staging_key="stg_unapproved_landing"),
+            ),
+        )
     observation = pending.bind_committed_staging_receipts(
         authority,
         (_staging_receipt(pending),),
     )
     assert observation.state == expected_state
     assert observation.staging_receipts[0].staging_receipt_root_sha256 == (_STAGING_ROOT_SHA256)
+
+    # Both exact physical routes are authorized to land the same provider set.
+    multi_authority = _two_landing_authority(params)
+    multi_pending = replace(
+        pending,
+        route_manifest_sha256=multi_authority.route_manifest.manifest_sha256,
+        route_ids=tuple(route.route_id for route in multi_authority.route_manifest.routes),
+    )
+    legacy_receipt = replace(
+        _staging_receipt(pending),
+        staging_key="stg_closure_stats_legacy",
+        staging_receipt_root_sha256="c" * 64,
+    )
+    multi_receipts = tuple(
+        sorted(
+            (_staging_receipt(pending), legacy_receipt),
+            key=lambda item: (
+                item.result_set_ordinal,
+                item.staging_key,
+                item.staging_receipt_root_sha256,
+            ),
+        )
+    )
+    multi_observation = multi_pending.bind_committed_staging_receipts(
+        multi_authority,
+        multi_receipts,
+    )
+    assert len(multi_observation.staging_receipts) == 2
+    assert {item.result_set_ordinal for item in multi_observation.staging_receipts} == {0}
     journal.record_success.assert_called_once()
 
 

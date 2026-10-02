@@ -553,6 +553,48 @@ def _forward_explicit_provider_parameters(
                 )
         if not any(target in forwarded for target in targets) and targets:
             forwarded[targets[0]] = requested
+
+    # DraftHistory season_year_nullable is a calendar draft year, while
+    # planner requests carry NBA season labels such as 2024-25. Normalize at
+    # this shared boundary so live extraction and closure probing bind the
+    # same provider argument without changing the hash-pinned extractor.
+    if getattr(endpoint_cls, "__name__", "") == "DraftHistory":
+        value = forwarded.get("season_year_nullable")
+        if value is not None:
+            season_text = str(value)
+            if len(season_text) == 4 and season_text.isascii() and season_text.isdigit():
+                year = int(season_text)
+            elif (
+                len(season_text) == 7
+                and season_text.isascii()
+                and season_text[4] == "-"
+                and season_text[:4].isdigit()
+                and season_text[5:].isdigit()
+                and int(season_text[5:]) == (int(season_text[:4]) + 1) % 100
+            ):
+                year = int(season_text[:4])
+            else:
+                raise ResponseContractError(
+                    "DraftHistory season must be a calendar year or exact consecutive YYYY-YY"
+                )
+            forwarded["season_year_nullable"] = year
+
+    # ShotChartDetail omits LeagueID from both result sets even though its
+    # pinned constructor defaults the request to NBA league "00". Make that
+    # default explicit so the staging rows retain the scope needed by shot
+    # chart facts and league-average joins.
+    if getattr(endpoint_cls, "__name__", "") == "ShotChartDetail" and forwarded.get(
+        "league_id"
+    ) in (None, ""):
+        try:
+            league_parameter = signature(endpoint_cls).parameters["league_id"]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ResponseContractError(
+                "ShotChartDetail must expose its pinned league_id default"
+            ) from exc
+        if league_parameter.default is Parameter.empty:
+            raise ResponseContractError("ShotChartDetail league_id default is not pinned")
+        forwarded["league_id"] = league_parameter.default
     return forwarded
 
 
@@ -564,6 +606,114 @@ def _to_snake_case(name: str) -> str:
     camelCase (e.g., gameId -> game_id), and mixed cases.
     """
     return _projected_to_snake_case(name)
+
+
+def _parse_matchup_minutes(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+
+    text = value.strip()
+    if not text:
+        return None
+
+    parts = text.split(":")
+    try:
+        if len(parts) == 2:
+            minutes, seconds = parts
+            return float(minutes) + float(seconds) / 60
+        if len(parts) == 3:
+            hours, minutes, seconds = parts
+            return float(hours) * 60 + float(minutes) + float(seconds) / 60
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _normalize_box_score_matchups(source: pl.DataFrame) -> pl.DataFrame:
+    """Normalize BoxScoreMatchupsV3 before applying its raw schema."""
+    required = {
+        "game_id",
+        "team_id",
+        "team_tricode",
+        "person_id_off",
+        "first_name_off",
+        "family_name_off",
+        "person_id_def",
+        "first_name_def",
+        "family_name_def",
+        "matchup_minutes",
+    }
+    missing = sorted(required - set(source.columns))
+    if missing:
+        raise ResponseContractError(
+            f"matchup response is missing required source fields: {', '.join(missing)}"
+        )
+
+    teams = source.select("team_id", "team_tricode").unique().to_dicts()
+    if len(teams) != 2 or any(row["team_id"] is None for row in teams):
+        raise ResponseContractError(
+            "matchup response must identify exactly two non-null game teams"
+        )
+    team_ids = [int(row["team_id"]) for row in teams]
+    tricode_by_id = {int(row["team_id"]): row["team_tricode"] for row in teams}
+    opponent_by_id = {team_ids[0]: team_ids[1], team_ids[1]: team_ids[0]}
+    opponent_tricode_by_id = {
+        team_ids[0]: tricode_by_id[team_ids[1]],
+        team_ids[1]: tricode_by_id[team_ids[0]],
+    }
+    aliases = {
+        "partial_possessions": "partial_poss",
+        "player_points": "player_pts",
+        "team_points": "team_pts",
+        "matchup_assists": "matchup_ast",
+        "matchup_turnovers": "matchup_tov",
+        "matchup_blocks": "matchup_blk",
+        "matchup_field_goals_made": "matchup_fgm",
+        "matchup_field_goals_attempted": "matchup_fga",
+        "matchup_field_goals_percentage": "matchup_fg_pct",
+        "matchup_three_pointers_made": "matchup_fg3m",
+        "matchup_three_pointers_attempted": "matchup_fg3a",
+        "matchup_three_pointers_percentage": "matchup_fg3_pct",
+        "help_blocks": "help_blk",
+        "help_field_goals_made": "help_fgm",
+        "help_field_goals_attempted": "help_fga",
+        "help_field_goals_percentage": "help_fg_pct",
+        "matchup_free_throws_made": "matchup_ftm",
+        "matchup_free_throws_attempted": "matchup_fta",
+        "switches_on": "switches_on",
+    }
+    additions = [
+        pl.col("team_id").alias("off_team_id"),
+        pl.col("team_tricode").alias("off_team_abbreviation"),
+        pl.col("team_id")
+        .replace_strict(opponent_by_id, return_dtype=pl.Int64)
+        .alias("def_team_id"),
+        pl.col("team_id")
+        .replace_strict(opponent_tricode_by_id, return_dtype=pl.String)
+        .alias("def_team_abbreviation"),
+        pl.concat_str(
+            [pl.col("first_name_off"), pl.col("family_name_off")], separator=" ", ignore_nulls=True
+        ).alias("off_player_name"),
+        pl.concat_str(
+            [pl.col("first_name_def"), pl.col("family_name_def")], separator=" ", ignore_nulls=True
+        ).alias("def_player_name"),
+        pl.col("person_id_off").alias("off_player_id"),
+        pl.col("person_id_def").alias("def_player_id"),
+        pl.col("matchup_minutes")
+        .map_elements(_parse_matchup_minutes, return_dtype=pl.Float64)
+        .alias("matchup_min"),
+        pl.col("matchup_minutes")
+        .map_elements(_parse_matchup_minutes, return_dtype=pl.Float64)
+        .alias("matchup_minutes"),
+    ]
+    additions.extend(
+        pl.col(source_name).alias(target_name) for source_name, target_name in aliases.items()
+    )
+    return source.with_columns(additions)
 
 
 def _canonicalize_endpoint_column_name(
@@ -1019,6 +1169,19 @@ class BaseExtractor(ABC):
                 used_columns.add(canonical_name)
                 rename_map[column_name] = canonical_name
             df = df.rename(rename_map)
+            if endpoint_cls_name == "PlayerDashboardByClutch":
+                known_added_fields = {
+                    "wnba_fantasy_pts",
+                    "fp_high_score",
+                    "wnba_fantasy_pts_rank",
+                    "fp_high_score_rank",
+                    "team_count",
+                }
+                if known_added_fields.issubset(df.columns):
+                    if "cfid" not in df.columns:
+                        df = df.with_columns(pl.lit(None, dtype=pl.Int64).alias("cfid"))
+                    if "cfparams" not in df.columns:
+                        df = df.with_columns(pl.lit(None, dtype=pl.String).alias("cfparams"))
             df = _inject_request_scope_columns(df, kwargs)
             if result_set_index in converted_by_index:
                 raise ResponseContractError(
@@ -1055,7 +1218,10 @@ class BaseExtractor(ABC):
             # response. Do not force a missing/drifted wide packet through the
             # pinned raw schema and turn preserved provider data into failure.
             return converted[0]
-        return self._validate(converted[0])
+        frame = converted[0]
+        if getattr(endpoint_cls, "__name__", "") == "BoxScoreMatchupsV3":
+            frame = _normalize_box_score_matchups(frame)
+        return self._validate(frame)
 
     def _from_nba_api_multi(self, endpoint_cls: type, **kwargs: Any) -> list[pl.DataFrame]:
         """Call nba_api endpoint returning multiple result sets.

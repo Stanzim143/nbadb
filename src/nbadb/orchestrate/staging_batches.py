@@ -2218,7 +2218,16 @@ class StagingBatchStore:
                         continue
 
             frame_to_append = df
-            if df.columns:
+            # Empty provider responses can carry Null-typed columns. Creating a
+            # physical chunk table from one of those frames may infer an
+            # unusable type (for example INTEGER for group_set), which then
+            # rejects later non-empty responses for the same staging route.
+            # Keep the receipt but let the first rowful chunk establish the
+            # schema when an empty frame has ambiguous Null-typed columns.
+            has_ambiguous_empty_types = df.is_empty() and any(
+                dtype == pl.Null for dtype in df.dtypes
+            )
+            if df.columns and not has_ambiguous_empty_types:
                 frame_to_append = self._legacy_filtered_frame(safe_key, df)
                 if (
                     not frame_to_append.is_empty()

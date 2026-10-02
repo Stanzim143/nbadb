@@ -30,7 +30,14 @@ class AggOnOffSplitsSchema(BaseSchema):
     )
     gp: int | None = pa.Field(nullable=True, ge=0, metadata={"description": "Games covered"})
     min: float | None = pa.Field(
-        nullable=True, ge=0.0, metadata={"description": "Provider minutes in this split"}
+        nullable=True,
+        ge=0.0,
+        metadata={
+            "description": (
+                "Detail minutes on curated rows, retaining fractional precision; "
+                "summary whole-minute values are used as a consistency check."
+            )
+        },
     )
     w: int | None = pa.Field(nullable=True, ge=0)
     l: int | None = pa.Field(nullable=True, ge=0)  # noqa: E741
@@ -73,7 +80,15 @@ class AggOnOffSplitsSchema(BaseSchema):
     pf: float | None = pa.Field(nullable=True, ge=0.0)
     pfd: float | None = pa.Field(nullable=True, ge=0.0)
     pts: float | None = pa.Field(nullable=True, ge=0.0)
-    plus_minus: float | None = pa.Field(nullable=True)
+    plus_minus: float | None = pa.Field(
+        nullable=True,
+        metadata={
+            "description": (
+                "Summary plus-minus on curated player rows; source detail "
+                "plus-minus is retained on provider_detail rows."
+            )
+        },
+    )
     off_rating: float | None = pa.Field(
         nullable=True,
         ge=0.0,

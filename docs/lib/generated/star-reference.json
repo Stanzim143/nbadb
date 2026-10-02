@@ -1082,7 +1082,7 @@
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
-        "description": "Provider minutes in this split",
+        "description": "Detail minutes on curated rows, retaining fractional precision; summary whole-minute values are used as a consistency check.",
         "description_source": "metadata"
       },
       {
@@ -1298,8 +1298,8 @@
         "type": "Float64",
         "nullable": true,
         "constraints": "\u2014",
-        "description": "Point differential while the player or team was on court.",
-        "description_source": "generated"
+        "description": "Summary plus-minus on curated player rows; source detail plus-minus is retained on provider_detail rows.",
+        "description_source": "metadata"
       },
       {
         "name": "off_rating",
@@ -3984,9 +3984,9 @@
       {
         "name": "team_id",
         "type": "Int64",
-        "nullable": false,
+        "nullable": true,
         "constraints": "gt=0, FK\u2192dim_team.team_id",
-        "description": "Team identifier",
+        "description": "Team identifier when supplied by source",
         "description_source": "metadata"
       },
       {
@@ -4042,7 +4042,7 @@
         "type": "String",
         "nullable": true,
         "constraints": "\u2014",
-        "description": "Team abbreviation code",
+        "description": "Team abbreviation when supplied by source",
         "description_source": "metadata"
       },
       {

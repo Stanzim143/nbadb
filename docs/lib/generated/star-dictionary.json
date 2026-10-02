@@ -1192,7 +1192,7 @@
         "name": "min",
         "type": "Float64",
         "nullable": true,
-        "description": "Provider minutes in this split",
+        "description": "Detail minutes on curated rows, retaining fractional precision; summary whole-minute values are used as a consistency check.",
         "description_source": "metadata",
         "source": "derived.agg_on_off_splits.min",
         "fk_ref": ""
@@ -1435,8 +1435,8 @@
         "name": "plus_minus",
         "type": "Float64",
         "nullable": true,
-        "description": "Point differential while the player or team was on court.",
-        "description_source": "generated",
+        "description": "Summary plus-minus on curated player rows; source detail plus-minus is retained on provider_detail rows.",
+        "description_source": "metadata",
         "source": "derived.agg_on_off_splits.plus_minus",
         "fk_ref": ""
       },
@@ -4402,8 +4402,8 @@
       {
         "name": "team_id",
         "type": "Int64",
-        "nullable": false,
-        "description": "Team identifier",
+        "nullable": true,
+        "description": "Team identifier when supplied by source",
         "description_source": "metadata",
         "source": "",
         "fk_ref": "dim_team.team_id"
@@ -4466,7 +4466,7 @@
         "name": "team_abbreviation",
         "type": "String",
         "nullable": true,
-        "description": "Team abbreviation code",
+        "description": "Team abbreviation when supplied by source",
         "description_source": "metadata",
         "source": "derived.analytics_clutch_performance.team_abbreviation",
         "fk_ref": ""

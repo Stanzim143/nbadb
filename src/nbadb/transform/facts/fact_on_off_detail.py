@@ -17,21 +17,21 @@ class FactOnOffDetailTransformer(SqlTransformer):
     ]
 
     _SQL: ClassVar[str] = """
-        SELECT *, 'detail_overall' AS court_status
+        SELECT COLUMNS(c -> c != 'court_status'), 'detail_overall' AS court_status
         FROM stg_on_off_details_overall
         UNION ALL BY NAME
-        SELECT *, 'detail_off_court' AS court_status
+        SELECT COLUMNS(c -> c != 'court_status'), 'detail_off_court' AS court_status
         FROM stg_on_off_details_off_court
         UNION ALL BY NAME
-        SELECT *, 'detail_on_court' AS court_status
+        SELECT COLUMNS(c -> c != 'court_status'), 'detail_on_court' AS court_status
         FROM stg_on_off_details_on_court
         UNION ALL BY NAME
-        SELECT *, 'summary_overall' AS court_status
+        SELECT COLUMNS(c -> c != 'court_status'), 'summary_overall' AS court_status
         FROM stg_on_off_summary_overall
         UNION ALL BY NAME
-        SELECT *, 'summary_off_court' AS court_status
+        SELECT COLUMNS(c -> c != 'court_status'), 'summary_off_court' AS court_status
         FROM stg_on_off_summary_off_court
         UNION ALL BY NAME
-        SELECT *, 'summary_on_court' AS court_status
+        SELECT COLUMNS(c -> c != 'court_status'), 'summary_on_court' AS court_status
         FROM stg_on_off_summary_on_court
     """

@@ -128,16 +128,21 @@ class AnalyticsClutchPerformanceSchema(_MinutesStatMixin, _TraditionalStatsMixin
     """Clutch performance stats joined with player and team dimensions."""
 
     __consumer_metadata__ = {
-        "grain": "player-team-season-season_type-clutch_window-group",
+        "grain": "player-season-season_type-clutch_window-group",
         "agent_intents": ["clutch", "clutch_performance"],
-        "scd2_notes": (
-            "Player identity uses the half-open dim_player interval containing "
-            "the clutch row's season. Clutch windows remain provider-defined."
+        "identity_notes": (
+            "NBA Stats person_id joins to dim_all_players and its first/last "
+            "league years restrict the season match. The directory display name "
+            "is current and does not reconstruct historical name changes. "
+            "The player clutch endpoint has no team identifier, so team fields "
+            "remain null. Clutch windows remain provider-defined."
         ),
     }
 
     player_id: int = pa.Field(gt=0, metadata={"description": "Unique player identifier"})
-    team_id: int = pa.Field(gt=0, metadata={"description": "Team identifier"})
+    team_id: int | None = pa.Field(
+        nullable=True, gt=0, metadata={"description": "Team identifier when supplied by source"}
+    )
     season_year: str = pa.Field(metadata={"description": "Season year (e.g. 2024-25)"})
     season_type: str = pa.Field(metadata={"description": "Queried season type"})
     clutch_window: str = pa.Field(
@@ -153,7 +158,7 @@ class AnalyticsClutchPerformanceSchema(_MinutesStatMixin, _TraditionalStatsMixin
         nullable=True, metadata={"description": "Player display name"}
     )
     team_abbreviation: str | None = pa.Field(
-        nullable=True, metadata={"description": "Team abbreviation code"}
+        nullable=True, metadata={"description": "Team abbreviation when supplied by source"}
     )
     gp: int | None = pa.Field(nullable=True, metadata={"description": "Games played"})
     w: int | None = pa.Field(nullable=True, metadata={"description": "Wins"})
