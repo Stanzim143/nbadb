@@ -470,3 +470,16 @@ class TestFactShotChartSeasonYear:
         result = _run_sql(FactShotChartTransformer(), tables)
 
         assert result["game_date"].to_list() == ["20241105"]
+
+    def test_dimension_game_date_unparseable_fallback_preserves_value(self):
+        tables = self._tables()
+        tables["stg_shot_chart"] = tables["stg_shot_chart"].with_columns(
+            pl.lit(None, dtype=pl.String).alias("game_date")
+        )
+        tables["dim_game"] = tables["dim_game"].with_columns(
+            pl.lit("unknown-date").alias("game_date")
+        )
+
+        result = _run_sql(FactShotChartTransformer(), tables)
+
+        assert result["game_date"].to_list() == ["unknown-date"]

@@ -34,7 +34,8 @@ class FactShotChartTransformer(SqlTransformer):
             s.shot_attempted_flag, s.shot_made_flag,
             COALESCE(
                 CAST(s.game_date AS VARCHAR),
-                strftime(CAST(g.game_date AS DATE), '%Y%m%d')
+                strftime(TRY_CAST(g.game_date AS DATE), '%Y%m%d'),
+                CAST(g.game_date AS VARCHAR)
             ) AS game_date,
             s.htm, s.vtm
         FROM stg_shot_chart s
