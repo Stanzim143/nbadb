@@ -118,3 +118,48 @@ def test_matchups_normalizer_derives_opponent_identity_and_validates_staging() -
     assert result.get_column("def_team_id").to_list() == [1610612737, 1610612738]
     assert result.get_column("off_team_abbreviation").to_list() == ["BOS", "ATL"]
     assert result.get_column("def_team_abbreviation").to_list() == ["ATL", "BOS"]
+
+
+def test_empty_matchups_normalize_and_validate() -> None:
+    source = pl.DataFrame(
+        {
+            name: pl.Series(name, [], dtype=pl.Null)
+            for name in (
+                "game_id",
+                "team_id",
+                "team_tricode",
+                "person_id_off",
+                "first_name_off",
+                "family_name_off",
+                "person_id_def",
+                "first_name_def",
+                "family_name_def",
+                "matchup_minutes",
+                "partial_possessions",
+                "player_points",
+                "team_points",
+                "matchup_assists",
+                "matchup_turnovers",
+                "matchup_blocks",
+                "matchup_field_goals_made",
+                "matchup_field_goals_attempted",
+                "matchup_field_goals_percentage",
+                "matchup_three_pointers_made",
+                "matchup_three_pointers_attempted",
+                "matchup_three_pointers_percentage",
+                "help_blocks",
+                "help_field_goals_made",
+                "help_field_goals_attempted",
+                "help_field_goals_percentage",
+                "matchup_free_throws_made",
+                "matchup_free_throws_attempted",
+                "switches_on",
+            )
+        }
+    )
+
+    result = _normalize_box_score_matchups(source)
+    result = RawBoxScoreMatchupsSchema.validate(result)
+    result = StagingBoxScoreMatchupsSchema.validate(result)
+
+    assert result.is_empty()

@@ -654,17 +654,21 @@ def _normalize_box_score_matchups(source: pl.DataFrame) -> pl.DataFrame:
         )
 
     teams = source.select("team_id", "team_tricode").unique().to_dicts()
-    if len(teams) != 2 or any(row["team_id"] is None for row in teams):
+    if not source.is_empty() and (len(teams) != 2 or any(row["team_id"] is None for row in teams)):
         raise ResponseContractError(
             "matchup response must identify exactly two non-null game teams"
         )
     team_ids = [int(row["team_id"]) for row in teams]
     tricode_by_id = {int(row["team_id"]): row["team_tricode"] for row in teams}
-    opponent_by_id = {team_ids[0]: team_ids[1], team_ids[1]: team_ids[0]}
-    opponent_tricode_by_id = {
-        team_ids[0]: tricode_by_id[team_ids[1]],
-        team_ids[1]: tricode_by_id[team_ids[0]],
-    }
+    opponent_by_id = {team_ids[0]: team_ids[1], team_ids[1]: team_ids[0]} if team_ids else {}
+    opponent_tricode_by_id = (
+        {
+            team_ids[0]: tricode_by_id[team_ids[1]],
+            team_ids[1]: tricode_by_id[team_ids[0]],
+        }
+        if team_ids
+        else {}
+    )
     aliases = {
         "partial_possessions": "partial_poss",
         "player_points": "player_pts",

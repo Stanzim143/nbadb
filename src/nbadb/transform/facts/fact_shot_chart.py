@@ -32,7 +32,10 @@ class FactShotChartTransformer(SqlTransformer):
             s.shot_zone_basic, s.shot_zone_area, s.shot_zone_range,
             s.shot_distance, s.loc_x, s.loc_y,
             s.shot_attempted_flag, s.shot_made_flag,
-            COALESCE(s.game_date, CAST(g.game_date AS VARCHAR)) AS game_date,
+            COALESCE(
+                CAST(s.game_date AS VARCHAR),
+                strftime(CAST(g.game_date AS DATE), '%Y%m%d')
+            ) AS game_date,
             s.htm, s.vtm
         FROM stg_shot_chart s
         LEFT JOIN dim_game g ON s.game_id = g.game_id
