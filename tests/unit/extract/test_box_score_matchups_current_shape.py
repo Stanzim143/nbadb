@@ -163,3 +163,49 @@ def test_empty_matchups_normalize_and_validate() -> None:
     result = StagingBoxScoreMatchupsSchema.validate(result)
 
     assert result.is_empty()
+
+
+def test_matchups_team_with_null_and_known_tricode_counts_once() -> None:
+    source = pl.DataFrame(
+        {
+            "game_id": ["0022400001"] * 3,
+            "team_id": [1610612738, 1610612738, 1610612737],
+            "team_tricode": [None, "BOS", "ATL"],
+            "person_id_off": [1001, 1002, 2001],
+            "first_name_off": ["A", "B", "C"],
+            "family_name_off": ["One", "Two", "Three"],
+            "person_id_def": [2001, 2002, 1001],
+            "first_name_def": ["C", "D", "A"],
+            "family_name_def": ["Three", "Four", "One"],
+            "matchup_minutes": ["0:30"] * 3,
+        }
+    )
+
+    source = source.with_columns(
+        pl.lit(0).alias(name)
+        for name in (
+            "partial_possessions",
+            "player_points",
+            "team_points",
+            "matchup_assists",
+            "matchup_turnovers",
+            "matchup_blocks",
+            "matchup_field_goals_made",
+            "matchup_field_goals_attempted",
+            "matchup_field_goals_percentage",
+            "matchup_three_pointers_made",
+            "matchup_three_pointers_attempted",
+            "matchup_three_pointers_percentage",
+            "help_blocks",
+            "help_field_goals_made",
+            "help_field_goals_attempted",
+            "help_field_goals_percentage",
+            "matchup_free_throws_made",
+            "matchup_free_throws_attempted",
+            "switches_on",
+        )
+    )
+    result = _normalize_box_score_matchups(source)
+
+    assert result.height == 3
+    assert result.get_column("def_team_abbreviation").to_list() == ["ATL", "ATL", "BOS"]

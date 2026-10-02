@@ -653,18 +653,35 @@ def _normalize_box_score_matchups(source: pl.DataFrame) -> pl.DataFrame:
             f"matchup response is missing required source fields: {', '.join(missing)}"
         )
 
-    teams = source.select("team_id", "team_tricode").unique().to_dicts()
-    if not source.is_empty() and (len(teams) != 2 or any(row["team_id"] is None for row in teams)):
+    team_rows = source.select("team_id", "team_tricode").unique().to_dicts()
+    team_ids = {row["team_id"] for row in team_rows}
+    if not source.is_empty() and (len(team_ids) != 2 or None in team_ids):
         raise ResponseContractError(
             "matchup response must identify exactly two non-null game teams"
         )
-    team_ids = [int(row["team_id"]) for row in teams]
-    tricode_by_id = {int(row["team_id"]): row["team_tricode"] for row in teams}
-    opponent_by_id = {team_ids[0]: team_ids[1], team_ids[1]: team_ids[0]} if team_ids else {}
+    tricode_by_id: dict[int, str | None] = {}
+    for row in team_rows:
+        team_id = int(row["team_id"]) if row["team_id"] is not None else None
+        tricode = row["team_tricode"]
+        if team_id is None or tricode is None:
+            continue
+        existing = tricode_by_id.get(team_id)
+        if existing is not None and existing != tricode:
+            raise ResponseContractError("matchup team has conflicting team tricodes")
+        tricode_by_id[team_id] = tricode
+    normalized_team_ids = [int(team_id) for team_id in team_ids if team_id is not None]
+    opponent_by_id = (
+        {
+            normalized_team_ids[0]: normalized_team_ids[1],
+            normalized_team_ids[1]: normalized_team_ids[0],
+        }
+        if normalized_team_ids
+        else {}
+    )
     opponent_tricode_by_id = (
         {
-            team_ids[0]: tricode_by_id[team_ids[1]],
-            team_ids[1]: tricode_by_id[team_ids[0]],
+            normalized_team_ids[0]: tricode_by_id.get(normalized_team_ids[1]),
+            normalized_team_ids[1]: tricode_by_id.get(normalized_team_ids[0]),
         }
         if team_ids
         else {}

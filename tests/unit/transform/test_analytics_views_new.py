@@ -356,10 +356,12 @@ class TestAnalyticsClutchPerformance:
 
         dim_all_players = pl.DataFrame(
             {
-                "person_id": [201566],
-                "display_first_last": ["Russell Westbrook"],
-                "from_year": ["2008"],
-                "to_year": ["2026"],
+                "person_id": [201566, 201566],
+                "display_first_last": ["Russell Westbrook", "Russell Westbrook"],
+                "from_year": ["2008", "2008"],
+                "to_year": ["2026", "2026"],
+                "season_id": ["2008-09", "2009-10"],
+                "team_id": [1, 2],
             }
         ).lazy()
 
@@ -471,10 +473,12 @@ class TestAnalyticsClutchPerformance:
         ).lazy()
         dim_all_players = pl.DataFrame(
             {
-                "person_id": [201566],
-                "display_first_last": ["Russell Westbrook"],
-                "from_year": ["2008"],
-                "to_year": ["2026"],
+                "person_id": [201566, 201566],
+                "display_first_last": ["Russell Westbrook", "Russell Westbrook"],
+                "from_year": ["2008", "2008"],
+                "to_year": ["2026", "2026"],
+                "season_id": ["2008-09", "2009-10"],
+                "team_id": [1, 2],
             }
         ).lazy()
         result = _run(

@@ -20,17 +20,23 @@ class AnalyticsClutchPerformanceTransformer(SqlTransformer):
                 NULL::BIGINT AS team_id,
                 NULL::VARCHAR AS team_abbreviation
             FROM fact_player_clutch_detail c
-            LEFT JOIN dim_all_players p
+            LEFT JOIN (
+                SELECT
+                    person_id,
+                    MIN(display_first_last) AS display_first_last,
+                    MIN(TRY_CAST(from_year AS INTEGER)) AS from_year,
+                    MAX(TRY_CAST(to_year AS INTEGER)) AS to_year
+                FROM dim_all_players
+                GROUP BY person_id
+            ) p
               ON p.person_id = c.player_id
              AND (
-                 TRY_CAST(p.from_year AS INTEGER) IS NULL
-                 OR TRY_CAST(SUBSTR(c.season_year, 1, 4) AS INTEGER)
-                    >= TRY_CAST(p.from_year AS INTEGER)
+                 p.from_year IS NULL
+                 OR TRY_CAST(SUBSTR(c.season_year, 1, 4) AS INTEGER) >= p.from_year
              )
              AND (
-                 TRY_CAST(p.to_year AS INTEGER) IS NULL
-                 OR TRY_CAST(SUBSTR(c.season_year, 1, 4) AS INTEGER)
-                    <= TRY_CAST(p.to_year AS INTEGER)
+                 p.to_year IS NULL
+                 OR TRY_CAST(SUBSTR(c.season_year, 1, 4) AS INTEGER) <= p.to_year
              )
         )
         SELECT
