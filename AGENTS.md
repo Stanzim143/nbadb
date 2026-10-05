@@ -121,6 +121,17 @@ Most transformers (100+) extend `SqlTransformer(BaseTransformer)` — define `_S
 - `conftest.py` autouse fixture calls `get_settings.cache_clear()` (settings use `@lru_cache`)
 - Use `--import-mode=importlib` — the `nbadb/` root dir shadows `src/nbadb/`
 
+## Git Remote Ownership
+
+For this checkout, `Stanzim143/nbadb` is the user's repository and
+`wyattowalsh/nbadb` is upstream. Keep `origin` pointed at the user's repository
+and `upstream` pointed at `wyattowalsh/nbadb`. Before pushing, opening a pull
+request, or merging, verify the checkout, remote URLs, and requested target
+branch. Push to the user's repository unless the user explicitly names upstream
+as the destination. Never infer the destination from a stale remote setting or
+create a cross-repository pull request as a substitute; if the requested target
+cannot be updated, report the blocker without publishing elsewhere.
+
 ## Commands
 
 ```bash
